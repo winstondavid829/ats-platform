@@ -1,2 +1,2 @@
 web: gunicorn ats_backend.wsgi --log-file -
-release: python manage.py migrate
+release: python manage.py migrate && python seed_data.py
