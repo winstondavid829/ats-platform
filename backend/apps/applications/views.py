@@ -90,7 +90,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             response = requests.post(
                 golang_url,
                 json=payload,
-                timeout=70
+                timeout=180
             )
             
             if response.status_code == 200:
