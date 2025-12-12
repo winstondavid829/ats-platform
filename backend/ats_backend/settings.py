@@ -17,6 +17,12 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-produc
 DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,.railway.app', cast=Csv())
 
+# CSRF Configuration
+CSRF_TRUSTED_ORIGINS = [
+    'https://*.railway.app',
+    'https://ats-platform-production.up.railway.app',
+]
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -95,7 +101,7 @@ WSGI_APPLICATION = 'ats_backend.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL', default='mysql://root:1234@localhost:3307/ats_db'),
+        default=config('DATABASE_URL', default='mysql://root:HlIzMzEwrsmfCNJKezGefNPddJuAuqNo@ballast.proxy.rlwy.net:13203/railway'),
         conn_max_age=600,
         conn_health_checks=True,
     )
