@@ -5,6 +5,9 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from decouple import config, Csv
+import pymysql
+pymysql.install_as_MySQLdb()
+import dj_database_url
 
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -78,15 +81,23 @@ WSGI_APPLICATION = 'ats_backend.wsgi.application'
 #     }
 # }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'ats_db',
+#         'USER': 'root',
+#         'PASSWORD':'1234',
+#         'HOST':'localhost',
+#         'PORT':'3307'
+#     }
+# }
+
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'ats_db',
-        'USER': 'root',
-        'PASSWORD':'1234',
-        'HOST':'localhost',
-        'PORT':'3307'
-    }
+    'default': dj_database_url.config(
+        default=config('DATABASE_URL', default='mysql://root:1234@localhost:3307/ats_db'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 # Password validation
