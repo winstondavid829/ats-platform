@@ -9,6 +9,10 @@ import pymysql
 pymysql.install_as_MySQLdb()
 import dj_database_url
 
+# This is already in urls.py, but we can also configure WhiteNoise to serve media
+WHITENOISE_AUTOREFRESH = True
+WHITENOISE_USE_FINDERS = True
+
 # Build paths inside the project
 BASE_DIR = Path(__file__).resolve().parent.parent
 
