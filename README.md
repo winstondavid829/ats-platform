@@ -260,4 +260,4 @@ Focus on solving the core recruiter pain point: **screening hundreds of applicat
  **Error Handling:** More detailed error messages for users (currently generic 500 errors)
 
 ### Current Issue Occurred
-   **Scoring System:** 
+   Resume parsing is currently disabled for demo stability. The parsing service works, but due to intermittent network latency between services, it's temporarily disabled to ensure reliable application submissions. This can be re-enabled by setting DISABLE_RESUME_PARSING=false in the environment variables. 
