@@ -7,6 +7,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.conf import settings
 import requests
 import logging
+import os
 
 from .models import Application, ApplicationStatusHistory
 from .serializers import (
@@ -66,8 +67,9 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         # Save application
         application = serializer.save(job=job)
         
-        # Call Golang service for resume parsing
-        self._parse_resume(application)
+        # Only parse if not disabled
+        if not os.environ.get('DISABLE_RESUME_PARSING'):
+           self._parse_resume(application)
     
     def _parse_resume(self, application):
         """
