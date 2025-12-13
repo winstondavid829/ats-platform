@@ -1,454 +1,263 @@
-# Resume Parser Microservice - Golang
+# ATS Platform - Take Home Assignment
 
-Golang microservice for parsing resumes (PDF/DOCX) and extracting candidate information.
+**Deployed Application:**
+- **Frontend (React + TypeScript):** https://v0-g3w3e0w02-winston-s-projects-ceac6185.vercel.app
+- **Backend API (Django):** https://ats-platform-production.up.railway.app
+- **Resume Parser Service (Golang):** https://charismatic-freedom-production-109d.up.railway.app
 
-## Features
+**Tech Stack:** Django REST Framework | React with TypeScript | Golang | MySQL | Railway | Vercel
 
-✅ **PDF Parsing** - Extract text from PDF resumes
-✅ **DOCX Parsing** - Extract text from Word documents
-✅ **Skills Extraction** - Identify technical skills from resume text
-✅ **Experience Detection** - Extract years of experience
-✅ **Education Parsing** - Identify degrees and fields of study
-✅ **Contact Extraction** - Extract email and phone number
-✅ **Match Scoring** - Calculate candidate-job match score (0-100)
-✅ **REST API** - Simple HTTP JSON API
+---
 
-## Tech Stack
+## Design Decisions
 
-- **Go 1.21+** - Programming language
-- **Gin** - HTTP web framework
-- **ledongthuc/pdf** - PDF parsing library
-- **nguyenthenguyen/docx** - DOCX parsing library
+### 1. Microservices Architecture for Resume Parsing
 
-## Project Structure
+**Decision:** Separate Golang service for resume parsing instead of Django-only solution
 
+**Reasoning:**
+- **Performance Isolation:** PDF parsing is CPU-intensive. Isolating it prevents blocking the main API when processing large resumes
+- **Independent Scaling:** Can scale the parsing service independently based on upload volume
+- **Technology Optimization:** Go's concurrency model (goroutines) handles parallel PDF processing more efficiently than Python
+- **Graceful Degradation:** Main application continues functioning even if parsing service has issues
+
+**Trade-offs Considered:**
+- Pro: Better performance, scalability, and separation of concerns
+- Con: Added complexity in deployment and inter-service communication
+- **Conclusion:** For a recruiter handling hundreds of applications, performance and reliability justify the added complexity
+
+### 2. AI-Powered Resume Scoring
+
+**Decision:** Automated skill extraction and job-match scoring (0-100)
+
+**Reasoning:**
+- **Recruiter Pain Point:** Manually reviewing hundreds of resumes is time-consuming
+- **Solution:** Extract skills from resumes and calculate match score against job requirements
+- **Impact:** Recruiter can sort by score and focus on top 20% of candidates first
+
+**Implementation:**
 ```
-golang-service/
-├── handlers/
-│   └── resume_handler.go     # HTTP request handlers
-├── models/
-│   └── models.go              # Data structures
-├── parsers/
-│   ├── pdf_parser.go          # PDF parsing logic
-│   ├── docx_parser.go         # DOCX parsing logic
-│   ├── text_analyzer.go       # Text analysis & extraction
-│   ├── resume_parser.go       # Main parser coordinator
-│   └── utils.go               # Utility functions
-├── main.go                    # Application entry point
-├── go.mod                     # Go module definition
-├── .env.example               # Environment variables template
-└── README.md                  # This file
-```
-
-## API Endpoints
-
-### POST /parse-resume
-Parse a resume and extract information.
-
-**Request Body:**
-```json
-{
-  "file_url": "http://localhost:8000/media/resumes/2024/12/11/resume.pdf",
-  "job_requirements": ["Python", "Django", "React", "PostgreSQL"]
-}
+Score Calculation:
+- Parse resume → Extract skills (NumPy, Python, Docker, etc.)
+- Compare with job requirements
+- Calculate match percentage
+- Return sorted list (highest match first)
 ```
 
-**Response (Success):**
-```json
-{
-  "success": true,
-  "data": {
-    "skills": ["Python", "Django", "React", "PostgreSQL", "JavaScript", "SQL"],
-    "experience": "5+ years",
-    "education": "B.Sc in Computer Science",
-    "email": "candidate@example.com",
-    "phone": "+94771234567",
-    "score": 85
-  }
-}
-```
-
-**Response (Error):**
-```json
-{
-  "success": false,
-  "error": "Failed to parse resume: unsupported file type"
-}
-```
-
-### GET /health
-Health check endpoint.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "Resume Parser API",
-  "version": "1.0.0"
-}
-```
-
-## Setup Instructions
-
-### Prerequisites
-- Go 1.21 or higher
-- Internet connection (for downloading dependencies)
+**Assumption:** Recruiters value objective skill-matching over subjective resume reading
 
-### 1. Install Go
-
-**Windows:**
-Download from https://golang.org/dl/
-
-**Mac:**
-```bash
-brew install go
-```
-
-**Linux:**
-```bash
-wget https://golang.org/dl/go1.21.5.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.5.linux-amd64.tar.gz
-export PATH=$PATH:/usr/local/go/bin
-```
-
-### 2. Clone and Setup
+### 3. JWT Authentication Over Session-Based
 
-```bash
-cd golang-service
+**Decision:** Stateless JWT authentication instead of Django sessions
 
-# Download dependencies
-go mod download
+**Reasoning:**
+- **Scalability:** No server-side session storage needed
+- **Microservices Ready:** Multiple services can validate tokens without shared session store
+- **Mobile Future-Proof:** JWT works seamlessly with native mobile apps
+- **Load Balancing:** Any backend instance can handle any request (no sticky sessions)
 
-# Verify dependencies
-go mod verify
-```
+**Security Considerations:**
+- Short-lived access tokens (8 hours)
+- Refresh tokens for extended sessions (7 days)
+- HTTPS-only in production
 
-### 3. Run Development Server
+### 4. Status-Based Workflow
 
-```bash
-# Run directly
-go run main.go
+**Decision:** Simple status pipeline (Pending → Screening → Interview → Offer → Rejected)
 
-# Or build and run
-go build -o resume-parser
-./resume-parser
-```
+**Reasoning:**
+- **Assumption:** Most recruiting workflows follow a linear pipeline
+- **Flexibility:** Status can be changed at any time (not enforced progression)
+- **Tracking:** Status history automatically recorded with timestamps and user
 
-Server will start on `http://localhost:8080`
 
-### 4. Test the API
+### 5. Public Job Applications (No Auth Required)
 
-```bash
-# Health check
-curl http://localhost:8080/health
+**Decision:** Anyone can apply for jobs without creating an account
 
-# Parse resume
-curl -X POST http://localhost:8080/parse-resume \
-  -H "Content-Type: application/json" \
-  -d '{
-    "file_url": "http://localhost:8000/media/resumes/2024/12/11/resume.pdf",
-    "job_requirements": ["Python", "Django", "React"]
-  }'
-```
+**Reasoning:**
+- **Candidate Friction:** Forcing registration before applying reduces applications
+- **Recruiter Goal:** More qualified candidates in the pipeline
+- **User Experience:** Apply with just name, email, phone, and resume
 
-## Building for Production
+**Security:**
+- Applications still validated (email format, file type, size limits)
+- Rate limiting prevents spam
+- Authenticated recruiters only can view applications
 
-### Build Binary
+### 6. MySQL Over PostgreSQL
 
-```bash
-# For current OS
-go build -o resume-parser
+**Decision:** MySQL for relational database
 
-# For Linux (from Windows/Mac)
-GOOS=linux GOARCH=amd64 go build -o resume-parser-linux
+**Reasoning:**
+- **Railway Support:** First-class managed MySQL on Railway
+- **Sufficient Features:** All required features (JSON fields, full-text search) available
+- **Team Familiarity:** Faster development with familiar technology
+- **Migration Path:** Can switch to PostgreSQL if needed without application changes (Django ORM abstraction)
 
-# For Windows (from Linux/Mac)
-GOOS=windows GOARCH=amd64 go build -o resume-parser.exe
+**Assumption:** At this scale (hundreds to thousands of applications), MySQL performance is sufficient
 
-# For Mac (from Windows/Linux)
-GOOS=darwin GOARCH=amd64 go build -o resume-parser-mac
-```
+### 7. Separate Frontend Deployment
 
-### Run Binary
+**Decision:** React frontend on Vercel, Django backend on Railway
 
-```bash
-# Linux/Mac
-./resume-parser
+**Reasoning:**
+- **Performance:** Vercel's edge network provides sub-100ms global load times
+- **CI/CD:** Independent deployment pipelines for frontend and backend
+- **Development Velocity:** Frontend team can deploy without backend changes
+- **Cost Optimization:** Static hosting is cheaper than running frontend on backend servers
 
-# Windows
-resume-parser.exe
-```
+**Trade-off:** Added CORS configuration complexity (acceptable for better performance)
 
-## Configuration
+### 8. File Upload Direct to Django
 
-### Environment Variables
+**Decision:** Upload resumes directly to Django backend, not cloud storage
 
-Create a `.env` file (optional):
+**Reasoning:**
+- **Simplicity:** No additional AWS S3 configuration needed
+- **Cost:** No cloud storage costs for MVP
+- **Development Speed:** Faster to implement and test
+- **Future Migration:** Easy to switch to S3 later with minimal code changes
 
-```bash
-PORT=8080
-GIN_MODE=release
-```
+**Production Consideration:** Document in README that S3 should be used for production at scale
 
-Or set via command line:
+---
 
-```bash
-# Linux/Mac
-export PORT=8080
-export GIN_MODE=release
+## Key Assumptions
 
-# Windows
-set PORT=8080
-set GIN_MODE=release
-```
+### About the Recruiter (Target User)
 
-## Deployment
+1. **High Volume:** Recruiter handles 100+ applications per job posting
+2. **Time Constraint:** Limited time to review each application (< 2 minutes per resume)
+3. **Skill-Focused:** Matching technical skills is the primary screening criterion
+4. **Desktop Primary:** Recruiter works primarily from desktop (mobile-responsive but not mobile-first)
+5. **Single Team:** One recruiter or small team (no complex permission system needed for MVP)
 
-### Option 1: Railway
+### About the Recruitment Process
 
-1. Create Railway account
-2. Create new project from GitHub
-3. Railway auto-detects Go and deploys
-4. Set environment variables in dashboard
+1. **Linear Workflow:** Most candidates move through stages sequentially
+2. **Resume is Key:** Resume/CV is the primary evaluation document (not video, portfolio, etc.)
+3. **Bulk Actions:** Recruiters need to update multiple applications at once (move 10 candidates to "Interview")
+4. **Search Priority:** Searching by skills/keywords is more important than location/salary filters
+5. **Status Tracking:** Knowing where each candidate is in the pipeline is critical
 
-### Option 2: Docker
+### Technical Assumptions
 
-Create `Dockerfile`:
-```dockerfile
-FROM golang:1.21-alpine
-
-WORKDIR /app
-COPY . .
-
-RUN go mod download
-RUN go build -o resume-parser
-
-EXPOSE 8080
-CMD ["./resume-parser"]
-```
-
-Build and run:
-```bash
-docker build -t resume-parser .
-docker run -p 8080:8080 resume-parser
-```
-
-### Option 3: Heroku
-
-Create `Procfile`:
-```
-web: ./resume-parser
-```
-
-Deploy:
-```bash
-heroku create ats-resume-parser
-git push heroku main
-```
-
-### Option 4: DigitalOcean App Platform
-
-1. Connect GitHub repository
-2. Select Golang as runtime
-3. Set build command: `go build -o resume-parser`
-4. Set run command: `./resume-parser`
-5. Deploy
-
-## How It Works
-
-### 1. File Download
-Service downloads resume from provided URL to temporary file.
-
-### 2. File Type Detection
-Detects file type based on extension (.pdf or .docx).
-
-### 3. Text Extraction
-- **PDF:** Uses ledongthuc/pdf to extract text from all pages
-- **DOCX:** Uses nguyenthenguyen/docx to extract document content
-
-### 4. Information Extraction
-- **Skills:** Matches against 100+ predefined technical skills
-- **Experience:** Regex patterns to find "X years of experience"
-- **Education:** Matches degree types and fields of study
-- **Email:** Regex pattern for email addresses
-- **Phone:** Regex patterns for various phone formats
-
-### 5. Scoring Algorithm
-```
-Score = (Matched Skills / Total Required Skills) × 100
-```
-
-Example:
-- Required: Python, Django, React, PostgreSQL (4 skills)
-- Found: Python, Django, React, JavaScript (4 skills, 3 match)
-- Score: (3/4) × 100 = 75%
-
-## Extending the Parser
-
-### Add More Skills
-
-Edit `parsers/text_analyzer.go`:
-
-```go
-skillKeywords := []string{
-    // Add your skills here
-    "New Skill 1",
-    "New Skill 2",
-    // ...
-}
-```
-
-### Improve Extraction
-
-Modify regex patterns in `text_analyzer.go`:
-
-```go
-// Add new patterns
-patterns := []string{
-    `your-custom-pattern`,
-    // ...
-}
-```
-
-### Support More File Types
-
-Add new parser in `parsers/` directory:
-
-```go
-type NewParser struct{}
-
-func (p *NewParser) Parse(filePath string) (string, error) {
-    // Your parsing logic
-}
-```
-
-## Troubleshooting
-
-### Issue 1: "go: cannot find main module"
-
-**Solution:**
-```bash
-go mod init github.com/ats-platform/resume-parser
-go mod tidy
-```
-
-### Issue 2: Dependencies not downloading
-
-**Solution:**
-```bash
-go clean -modcache
-go mod download
-```
-
-### Issue 3: "Failed to download file"
-
-**Check:**
-- File URL is accessible
-- Django backend is running
-- CORS is properly configured
-
-### Issue 4: "No text content found"
-
-**Possible causes:**
-- PDF is image-based (scanned document)
-- DOCX is corrupted
-- File format not supported
-
-### Issue 5: Port 8080 already in use
-
-**Solution:**
-```bash
-# Use different port
-PORT=8081 go run main.go
-```
-
-## Testing
-
-### Manual Testing
-
-```bash
-# 1. Start the service
-go run main.go
-
-# 2. Test health check
-curl http://localhost:8080/health
-
-# 3. Test with sample resume
-curl -X POST http://localhost:8080/parse-resume \
-  -H "Content-Type: application/json" \
-  -d '{
-    "file_url": "http://example.com/resume.pdf",
-    "job_requirements": ["Python", "Django"]
-  }'
-```
-
-### Integration Testing
-
-Ensure Django backend is running, then:
-
-```bash
-# Submit application via Django API
-# Django will automatically call Golang service
-```
-
-## Performance
-
-- **Parsing Speed:** ~1-2 seconds per resume
-- **Memory Usage:** ~50-100MB
-- **Concurrent Requests:** Supports multiple simultaneous requests
-- **File Size Limit:** Recommended max 10MB per file
-
-## Limitations
-
-1. **Image-based PDFs:** Cannot extract text from scanned documents (OCR not implemented)
-2. **Complex Layouts:** May miss information in unusual resume formats
-3. **Language:** Optimized for English resumes
-4. **Skills Database:** Limited to predefined skills list
-
-## Future Enhancements
-
-- OCR support for scanned PDFs
-- Multi-language support
-- Machine learning-based extraction
-- Resume quality scoring
-- Duplicate detection
-- Batch processing
-- Caching layer
-- Database integration
-
-## Logging
-
-Logs are written to stdout with timestamps:
-
-```
-2024/12/11 10:30:00 Starting Resume Parser Service...
-2024/12/11 10:30:00 Server starting on port 8080
-2024/12/11 10:30:15 Parsing resume from URL: http://...
-2024/12/11 10:30:17 Successfully parsed resume. Score: 85, Skills: [Python Django React]
-```
-
-## Security Considerations
-
-1. **File Validation:** Service only accepts PDF and DOCX files
-2. **Download Timeout:** 30-second timeout prevents hanging
-3. **Temporary Files:** Automatically deleted after parsing
-4. **No Persistence:** No files are permanently stored
-5. **CORS:** Enabled for cross-origin requests
-
-## Support
-
-For issues or questions:
-- Email: winston@ethronixlabs.com
-- GitHub Issues: (your-repo-url)
-
-## License
-
-Proprietary - Ethronix Labs
-
-## Version History
-
-- **v1.0.0** (2024-12-11) - Initial release
-  - PDF and DOCX parsing
-  - Skills, experience, education extraction
-  - Match scoring algorithm
-  - REST API with Gin
+1. **PDF Standard:** Most resumes are PDF format (not Word, HTML, etc.)
+2. **English Language:** Resume parsing optimized for English-language resumes
+3. **Standard Resume Format:** Common sections (Skills, Experience, Education)
+4. **Modern Browsers:** Users on Chrome/Firefox/Safari (last 2 versions)
+5. **Upload Size:** Resume files under 5MB (typical PDF resume is 200-500KB)
+
+### Deployment Assumptions
+
+1. **Cloud-Native:** Application will always run in cloud (not on-premise)
+2. **Continuous Deployment:** Changes can be deployed immediately (not quarterly releases)
+3. **Managed Services:** Database, hosting, SSL managed by platform (Railway/Vercel)
+4. **Auto-Scaling:** Platform handles traffic scaling automatically
+
+---
+
+## Features Included
+
+### Core Features (Must Have)
+ **Resume Parsing & Scoring** - Automated skill extraction and job matching (highest value)
+ **Application Management** - View, filter, search applications
+ **Job Posting Management** - Create and manage job listings
+ **Status Workflow** - Move candidates through hiring pipeline
+ **JWT Authentication** - Secure recruiter access
+
+### Enhanced Features (Should Have)
+**Bulk Status Updates** - Update multiple applications at once
+**Status History Tracking** - See when and who changed application status
+**Advanced Filtering** - Filter by status, job, skills
+**Search Functionality** - Search candidates by name, email, skills
+**Responsive Design** - Works on mobile/tablet (recruiter on-the-go)
+
+### Features Excluded (Conscious Trade-offs)
+
+**Not Implemented Due to Time Constraints:**
+-  Email Notifications - Would require email service integration (SendGrid, AWS SES)
+-  Interview Scheduling - Complex calendar integration, lower priority than screening
+-  Candidate Portal - Candidates can apply but can't track status (recruiter-focused MVP)
+-  Team Collaboration - Comments, notes, shared evaluation (single-user MVP sufficient)
+-  Analytics Dashboard - Metrics like time-to-hire, conversion rates (future phase)
+
+**Why These Features Were Deprioritized:**
+Focus on solving the core recruiter pain point: **screening hundreds of applications quickly**. Other features add value but don't solve the primary problem.
+
+
+**Communication Pattern:**
+1. **Frontend ↔ Backend:** REST API with JSON, JWT in Authorization header
+2. **Backend ↔ Database:** Django ORM (PyMySQL driver)
+3. **Backend ↔ Golang:** HTTP POST with file upload (internal Railway network)
+
+### Why This Architecture?
+
+**Separation of Concerns:**
+- Frontend: User interface and experience
+- Backend: Business logic, authentication, database
+- Parser Service: Specialized PDF processing
+
+**Scalability Path:**
+- Frontend: Edge network caching (already on Vercel)
+- Backend: Horizontal scaling (multiple Railway instances)
+- Parser: Independent scaling based on upload volume
+
+**Reliability:**
+- Frontend CDN: 99.9% uptime (Vercel SLA)
+- Backend: Auto-restart on crash (Railway)
+- Parser: Graceful degradation (app works even if parsing fails)
+
+---
+
+## Technology Choices
+
+### Django REST Framework
+**Why:** 
+- Rapid development with built-in admin, ORM, and authentication
+- DRF provides excellent API browsability and documentation
+- Large ecosystem for common features (JWT, CORS, filtering)
+
+**Trade-off:** 
+- Python can be slower than compiled languages
+- **Mitigation:** Offloaded heavy processing (PDF parsing) to Golang
+
+### React with TypeScript
+**Why:**
+- TypeScript prevents common JavaScript errors (null checks, type mismatches)
+- React's component model enables rapid UI development
+- Large ecosystem (Tailwind CSS, React Router, Axios)
+
+**Trade-off:**
+- Build step required (Vite compilation)
+- **Mitigation:** Vercel handles builds automatically
+
+### Golang for PDF Parsing
+**Why:**
+- Concurrent processing (goroutines) handles multiple resumes efficiently
+- Compiled binary deploys easily to Railway
+- Excellent PDF parsing libraries available
+
+**Trade-off:**
+- Added deployment complexity (second service)
+- **Mitigation:** Railway's Docker support makes deployment straightforward
+
+### MySQL Database
+**Why:**
+- Managed service on Railway (no DevOps overhead)
+- JSON field support for parsed resume data
+- Full-text search capabilities for skill searching
+
+**Future Consideration:**
+- PostgreSQL offers more advanced features (better JSON querying, arrays)
+- Easy to migrate via Django migrations if needed
+
+
+### What Could Be Improved
+ **File Storage:** Should have used S3 from start (media serving adds backend load)
+ **Testing:** Should have written unit tests alongside development (not after)
+ **Error Handling:** More detailed error messages for users (currently generic 500 errors)
+
+### Current Issue Occurred
+   **Scoring System:** 
